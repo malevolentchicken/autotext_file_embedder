@@ -13,6 +13,6 @@ A collection of some scripts to assist with embedding a file into a Word Documen
 
 To remove the autotext entries use the delete_autotextentries() function. Make sure to remove delete_autotextentries() and insert_autotext() from your final doc.
 
-A bit clunky but has proven useful. Tested these scripts by embedding a crafted MSBuild xml file into a .doc, write it out, and execute via wmi. Beacon executed without detection by Defender and SEP.
+A bit clunky but has proven useful. Tested these scripts by embedding a crafted MSBuild xml file into a .doc, write it out, and execute via wmi. Beacon executed without detection by either Defender or SEP.
 
 Cheers
